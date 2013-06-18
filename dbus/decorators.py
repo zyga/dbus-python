@@ -4,6 +4,7 @@
 # Copyright (C) 2003 David Zeuthen
 # Copyright (C) 2004 Rob Taylor
 # Copyright (C) 2005, 2006 Collabora Ltd. <http://www.collabora.co.uk/>
+# Copyright (C) 2013 Canonical Ltd.
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -25,7 +26,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-__all__ = ('method', 'signal')
+__all__ = ('method', 'signal', 'property')
 __docformat__ = 'restructuredtext'
 
 import inspect
@@ -343,3 +344,136 @@ def signal(dbus_interface, signature=None, path_keyword=None,
         return emit_signal
 
     return decorator
+
+
+class property:
+    """
+    property that handles DBus stuff
+    """
+
+    def __init__(self, dbus_signature, dbus_interface, dbus_property=None,
+                 setter=False):
+        """
+        Initialize new dbus_property with the given interface name.
+
+        If dbus_property is not specified it is set to the name of the
+        decorated method. In special circumstances you may wish to specify
+        alternate dbus property name explicitly.
+
+        If setter is set to True then the implicit decorated function is a
+        setter, not the default getter. This allows to define write-only
+        properties.
+        """
+        self.__name__ = None
+        self.__doc__ = None
+        self._dbus_signature = dbus_signature
+        self._dbus_interface = dbus_interface
+        self._dbus_property = dbus_property
+        self._getf = None
+        self._setf = None
+        self._implicit_setter = setter
+
+    @property
+    def dbus_access_flag(self):
+        """
+        access flag of this DBus property
+
+        :returns: either "readwrite", "read" or "write"
+        :raises TypeError: if the property is ill-defined
+        """
+        if self._getf and self._setf:
+            return "readwrite"
+        elif self._getf:
+            return "read"
+        elif self._setf:
+            return "write"
+        else:
+            raise TypeError(
+                "property provides neither readable nor writable")
+
+    @property
+    def dbus_interface(self):
+        """
+        name of the DBus interface of this DBus property
+        """
+        return self._dbus_interface
+
+    @property
+    def dbus_property(self):
+        """
+        name of this DBus property
+        """
+        return self._dbus_property
+
+    @property
+    def dbus_signature(self):
+        """
+        signature of this DBus property
+        """
+        return self._dbus_signature
+
+    @property
+    def setter(self):
+        """
+        decorator for setter functions
+
+        This property can be used to decorate additional method that
+        will be used as a property setter. Otherwise properties cannot
+        be assigned.
+        """
+        def decorator(func):
+            self._setf = func
+            return self
+        return decorator
+
+    @property
+    def getter(self):
+        """
+        decorator for getter functions
+
+        This property can be used to decorate additional method that
+        will be used as a property getter. It is only provider for parity
+        as by default, the @dbus.service.property() decorator designates
+        a getter function. This behavior can be controlled by passing
+        setter=True to the property initializer.
+        """
+        def decorator(func):
+            self._getf = func
+            return self
+        return decorator
+
+    def __call__(self, func):
+        """
+        Decorate a getter (or setter) function and return the property object
+
+        This method sets __name__, __doc__ and _dbus_property.
+        """
+        self.__name__ = func.__name__
+        if self.__doc__ is None:
+            self.__doc__ = func.__doc__
+        if self._dbus_property is None:
+            self._dbus_property = func.__name__
+        if self._implicit_setter:
+            return self.setter(func)
+        else:
+            return self.getter(func)
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+        else:
+            if self._getf is None:
+                raise dbus.exceptions.DBusException(
+                    "property is not readable")
+            return self._getf(instance)
+
+    def __set__(self, instance, value):
+        if self._setf is None:
+            raise dbus.exceptions.DBusException(
+                "property is not writable")
+        self._setf(instance, value)
+
+    # This little helper is here is to help
+    # :meth:`dbus.service.Object.Introspect()` figure out how to handle
+    # properties.
+    _dbus_is_property = True
