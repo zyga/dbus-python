@@ -2,6 +2,7 @@
 # Copyright (C) 2003 David Zeuthen
 # Copyright (C) 2004 Rob Taylor
 # Copyright (C) 2005-2006 Collabora Ltd. <http://www.collabora.co.uk/>
+# Copyright (C) 2013 Canonical Ltd.
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -23,7 +24,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-__all__ = ('BusName', 'Object', 'method', 'signal')
+__all__ = ('BusName', 'Object', 'method', 'signal', 'property')
 __docformat__ = 'restructuredtext'
 
 import sys
@@ -34,9 +35,9 @@ from collections import Sequence
 
 import _dbus_bindings
 from dbus import (
-    INTROSPECTABLE_IFACE, ObjectPath, SessionBus, Signature, Struct,
+    INTROSPECTABLE_IFACE, PROPERTIES_IFACE, ObjectPath, SessionBus, Signature, Struct,
     validate_bus_name, validate_object_path)
-from dbus.decorators import method, signal
+from dbus.decorators import method, signal, property as dbus_property
 from dbus.exceptions import (
     DBusException, NameExistsException, UnknownMethodException)
 from dbus.lowlevel import ErrorMessage, MethodReturnMessage, MethodCallMessage
@@ -789,6 +790,114 @@ class Object(Interface):
         reflection_data += '</node>\n'
 
         return reflection_data
+
+    @method(PROPERTIES_IFACE, in_signature="ss", out_signature="v")
+    def Get(self, interface_name, property_name):
+        """
+        Get the value of a property @property_name on interface
+        @interface_name.
+        """
+        _logger.debug("Get(%r, %r)", interface_name, property_name)
+        property_iface_map = self._get_property_iface_map()
+        if interface_name not in property_iface_map:
+            raise DBusException(
+                PROPERTIES_IFACE, "No such interface %s" % interface_name)
+        if property_name not in property_iface_map[interface_name]:
+            raise DBusException(PROPERTIES_IFACE, "No such property %s:%s" % (
+                interface_name, property_name))
+        name = property_iface_map[interface_name][property_name]
+        try:
+            return getattr(self, name)
+        except DBusException:
+            raise
+        except Exception as exc:
+            _logger.exception(
+                "runaway exception from Get(%r, %r)",
+                interface_name, property_name)
+            raise DBusException(
+                PROPERTIES_IFACE,
+                "Unable to get property interface/property %s:%s: %r" % (
+                    interface_name, property_name, exc))
+
+    @method(PROPERTIES_IFACE, in_signature="ssv", out_signature="")
+    def Set(self, interface_name, property_name, value):
+        _logger.debug("Set(%r, %r, %r)", interface_name, property_name, value)
+        property_iface_map = self._get_property_iface_map()
+        if interface_name not in property_iface_map:
+            raise DBusException(
+                PROPERTIES_IFACE, "No such interface %s" % interface_name)
+        if property_name not in property_iface_map[interface_name]:
+            raise DBusException(
+                PROPERTIES_IFACE,
+                "No such property %s:%" % (interface_name, property_name))
+        name = property_iface_map[interface_name][property_name]
+        try:
+            setattr(self, name, value)
+        except DBusException:
+            raise
+        except Exception as exc:
+            _logger.exception(
+                "runaway exception from Set(%r, %r, %r)",
+                interface_name, property_name, value)
+            raise DBusException(
+                PROPERTIES_IFACE, "Unable to set property %s:%s: %r" % ((
+                    interface_name, property_name, exc)))
+
+    @method(PROPERTIES_IFACE, in_signature="s", out_signature="a{sv}")
+    def GetAll(self, interface_name):
+        _logger.debug("GetAll(%r)", interface_name)
+        property_iface_map = self._get_property_iface_map()
+        if interface_name not in property_iface_map:
+            raise DBusException(
+                PROPERTIES_IFACE,
+                "No such interface %s" % interface_name)
+        else:
+            return {
+                property_name: self.Get(interface_name, property_name)
+                for property_name in property_iface_map[interface_name]
+            }
+
+    @signal(PROPERTIES_IFACE, signature='sa{sv}as')
+    def PropertiesChanged(self, interface_name, changed_properties,
+                          invalidated_properties):
+        _logger.debug(
+            "PropertiesChanged(%r, %r, %r)",
+            interface_name, changed_properties, invalidated_properties)
+
+    # TODO: convert this to use _dbus_class_table
+
+    # None helper that is overridden per-class in _get_property_iface_map()
+    _property_iface_map = None
+
+    @classmethod
+    def _get_property_iface_map(cls):
+        """
+        Get or construct (once) property-interface map out of methods
+        decorated with @dbus_property decorator.
+        """
+        if cls._property_iface_map is None:
+            property_iface_map = cls._build_property_iface_map()
+            _logger.debug("built property_iface_map: %r", property_iface_map)
+            cls._property_iface_map = property_iface_map
+        return cls._property_iface_map
+
+    @classmethod
+    def _build_property_iface_map(cls):
+        """
+        Construct property-interface map out of methods
+        decorated with @dbus_property decorator.
+        """
+        pif = {}  # property_iface_map
+        _logger.debug("Looking for dbus_property instances in %r", cls)
+        for name in dir(cls):
+            obj = cls.__dict__.get(name)
+            if not isinstance(obj, dbus_property):
+                continue
+            _logger.debug("Found DBus property %r", obj)
+            if obj._dbus_interface not in pif:
+                pif[obj._dbus_interface] = {}
+            pif[obj._dbus_interface][obj._dbus_property] = name
+        return pif
 
     def __repr__(self):
         where = ''
