@@ -370,6 +370,13 @@ class InterfaceType(type):
 
         return reflection_data
 
+    def _reflect_on_property(cls, func):
+        reflection_data = (
+            '    <property name="%s" type="%s" access="%s"/>\n' % (
+                func._dbus_property, func._dbus_signature,
+                func.dbus_access_flag))
+        return reflection_data
+
 
 # Define Interface as an instance of the metaclass InterfaceType, in a way
 # that is compatible across both Python 2 and Python 3.
@@ -771,6 +778,8 @@ class Object(Interface):
                     reflection_data += self.__class__._reflect_on_method(func)
                 elif getattr(func, '_dbus_is_signal', False):
                     reflection_data += self.__class__._reflect_on_signal(func)
+                elif getattr(func, '_dbus_is_property', False):
+                    reflection_data += self.__class__._reflect_on_property(func)
 
             reflection_data += '  </interface>\n'
 
