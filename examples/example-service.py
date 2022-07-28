@@ -1,14 +1,18 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
+from __future__ import print_function
 
 usage = """Usage:
-python example-service.py &
-python example-client.py
-python example-async-client.py
-python example-client.py --exit-service
+python3 example-service.py &
+python3 example-client.py
+python3 example-async-client.py
+python3 example-client.py --exit-service
 """
 
 # Copyright (C) 2004-2006 Red Hat Inc. <http://www.redhat.com/>
 # Copyright (C) 2005-2007 Collabora Ltd. <http://www.collabora.co.uk/>
+#
+# SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -30,7 +34,7 @@ python example-client.py --exit-service
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import gobject
+from gi.repository import GLib
 
 import dbus
 import dbus.service
@@ -44,7 +48,7 @@ class SomeObject(dbus.service.Object):
     @dbus.service.method("com.example.SampleInterface",
                          in_signature='s', out_signature='as')
     def HelloWorld(self, hello_message):
-        print (str(hello_message))
+        print("service:", str(hello_message))
         return ["Hello", " from example-service.py", "with unique name",
                 session_bus.get_unique_name()]
 
@@ -77,7 +81,7 @@ if __name__ == '__main__':
     name = dbus.service.BusName("com.example.SampleService", session_bus)
     object = SomeObject(session_bus, '/SomeObject')
 
-    mainloop = gobject.MainLoop()
-    print "Running example service."
-    print usage
+    mainloop = GLib.MainLoop()
+    print("Running example service.")
+    print(usage)
     mainloop.run()
