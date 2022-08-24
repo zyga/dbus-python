@@ -1,13 +1,17 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
+from __future__ import print_function
 
 usage = """Usage:
-python example-signal-emitter.py &
-python example-signal-recipient.py
-python example-signal-recipient.py --exit-service
+python3 example-signal-emitter.py &
+python3 example-signal-recipient.py
+python3 example-signal-recipient.py --exit-service
 """
 
 # Copyright (C) 2004-2006 Red Hat Inc. <http://www.redhat.com/>
 # Copyright (C) 2005-2007 Collabora Ltd. <http://www.collabora.co.uk/>
+#
+# SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -29,7 +33,7 @@ python example-signal-recipient.py --exit-service
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import gobject
+from gi.repository import GLib
 
 import dbus
 import dbus.service
@@ -48,7 +52,7 @@ class TestObject(dbus.service.Object):
     @dbus.service.method('com.example.TestService')
     def emitHelloSignal(self):
         #you emit signals by calling the signal's skeleton method
-        self.HelloSignal('Hello')
+        self.HelloSignal('HelloWorld')
         return 'Signal emitted'
 
     @dbus.service.method("com.example.TestService",
@@ -63,7 +67,7 @@ if __name__ == '__main__':
     name = dbus.service.BusName('com.example.TestService', session_bus)
     object = TestObject(session_bus)
 
-    loop = gobject.MainLoop()
-    print "Running example signal emitter service."
-    print usage
+    loop = GLib.MainLoop()
+    print("Running example signal emitter service.")
+    print(usage)
     loop.run()

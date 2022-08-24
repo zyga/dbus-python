@@ -1,13 +1,17 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
+from __future__ import print_function
 
 usage = """Usage:
-python example-service.py &
-python example-client.py
-python example-client.py --exit-service
+python3 example-service.py &
+python3 example-client.py
+python3 example-client.py --exit-service
 """
 
 # Copyright (C) 2004-2006 Red Hat Inc. <http://www.redhat.com/>
 # Copyright (C) 2005-2007 Collabora Ltd. <http://www.collabora.co.uk/>
+#
+# SPDX-License-Identifier: MIT
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -46,30 +50,30 @@ def main():
             dbus_interface = "com.example.SampleInterface")
     except dbus.DBusException:
         print_exc()
-        print usage
+        print(usage)
         sys.exit(1)
 
-    print (hello_reply_list)
+    print("client:", hello_reply_list)
 
     # ... or create an Interface wrapper for the remote object
     iface = dbus.Interface(remote_object, "com.example.SampleInterface")
 
     hello_reply_tuple = iface.GetTuple()
 
-    print hello_reply_tuple
+    print("client:", hello_reply_tuple)
 
     hello_reply_dict = iface.GetDict()
 
-    print hello_reply_dict
+    print("client:", hello_reply_dict)
 
     # D-Bus exceptions are mapped to Python exceptions
     try:
         iface.RaiseException()
     except dbus.DBusException as e:
-        print str(e)
+        print("client:", str(e))
 
     # introspection is automatically supported
-    print remote_object.Introspect(dbus_interface="org.freedesktop.DBus.Introspectable")
+    print("client:", remote_object.Introspect(dbus_interface="org.freedesktop.DBus.Introspectable"))
 
     if sys.argv[1:] == ['--exit-service']:
         iface.Exit()
